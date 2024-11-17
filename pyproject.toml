@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "pleepbot"
+description = "A twitch and a discord bot."
+authors = ["Kazzuun"]
+license = "LICENSE"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pydantic = "^2.7.4"
+twitchio = "^2.10.0"
+asyncpg = "^0.29.0"
+python-dotenv = "^1.0.1"
+gql = {extras = ["aiohttp"], version = "^3.5.0"}
+isodate = "^0.6.1"
+discord-py = "^2.4.0"
+python-dateutil = "^2.9.0.post0"
+
+[build-system]
+requires = ["poetry-core>=1.8.3"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,70 @@
+services:
+  nginx:
+    image: nginx:1.27.0
+    container_name: nginx_reverse_proxy
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - /etc/letsencrypt:/etc/letsencrypt
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    depends_on:
+      - twitch_bot
+
+  twitch_bot:
+    container_name: twitch_bot
+    build:
+      context: .
+      dockerfile: Twitch/Dockerfile
+    restart: on-failure
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      dbmate:
+        condition: service_completed_successfully
+
+  discord_bot:
+    container_name: discord_bot
+    build:
+      context: .
+      dockerfile: Discord/Dockerfile
+    restart: on-failure
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      dbmate:
+        condition: service_completed_successfully
+
+  dbmate:
+    container_name: dbmate_migrations
+    image: amacneil/dbmate:2.19.0
+    env_file:
+      - .env
+    volumes:
+      - ./db:/db
+    depends_on:
+      - db
+    entrypoint: ["dbmate", "--wait", "up"]
+
+  db:
+    container_name: postgresql_database
+    image: postgres:16.3
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+volumes:
+  postgres_data:
