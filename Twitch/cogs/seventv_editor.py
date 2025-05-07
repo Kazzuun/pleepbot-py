@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import binascii
 from difflib import SequenceMatcher
@@ -9,7 +10,7 @@ from typing import TYPE_CHECKING
 import twitchio
 from twitchio.ext import commands
 
-from shared.apis import seventv
+from shared.apis import seventv, exceptions
 from shared.database.twitch import channels
 from Twitch.exceptions import ValidationError
 from Twitch.logger import logger
@@ -70,7 +71,7 @@ class SevenTVEditor(commands.Cog):
             if ctx.author.is_broadcaster:
                 bot_user = await seventv.user_from_id(self.seventv_user_id)
                 raise ValidationError(
-                    f"Bot's account ({bot_user.username}) is not a 7tv editor of this channel, you can add it in https://7tv.app/users/{user_info.user.id}"
+                    f"Bot's account ({bot_user.username}) is not a 7tv editor of this channel, you can add it in https://7tv.app/users/{user_info.user.id}/editors"
                 )
             else:
                 raise ValidationError("I am not a 7tv editor of this channel")
@@ -194,10 +195,7 @@ class SevenTVEditor(commands.Cog):
             set_name = f"{from_emote_set.owner.display_name}'s emotes"
             target_emote_set_id = await seventv.create_emote_set(set_name, channel_account.user.id)
             capacity = channel_account.emote_set.capacity
-            try:
-                await seventv.update_emote_set(set_name, capacity, target_emote_set_id)
-            except:
-                await seventv.update_emote_set(set_name, 600, target_emote_set_id)
+            await seventv.update_emote_set(set_name, capacity, target_emote_set_id)
             if "-a" in args:
                 await seventv.activate_emote_set(channel_id, target_emote_set_id, channel_account.user.id)
             to_emote_set = await seventv.emote_set_from_id(target_emote_set_id, force_cache=True)
@@ -214,13 +212,25 @@ class SevenTVEditor(commands.Cog):
             await self.bot.msg_q.send(ctx, "There are no emotes that can be copied")
             return
         await self.bot.msg_q.send(
-            ctx, f"Copying {len(valid_emotes)} emotes from {from_emote_set.id} to {to_emote_set.id}"
+            ctx, f"Copying {len(valid_emotes)} emotes from {from_emote_set.name} to {to_emote_set.name}"
         )
 
         for i, emote in enumerate(valid_emotes, 1):
-            await seventv.add_emote(to_emote_set.id, emote.id, emote.name)
-            if i % 100 == 0:
-                await self.bot.msg_q.send(ctx, f"Copying progress: {i}/{len(valid_emotes)}")
+            tries = 0
+            while True:
+                try:
+                    tries += 1
+                    await seventv.add_emote(to_emote_set.id, emote.id, emote.name)
+                    if i % 100 == 0:
+                        await self.bot.msg_q.send(ctx, f"Copying progress: {i}/{len(valid_emotes)}")
+                    break
+                except exceptions.APIRequestError as e:
+                    if "conflict" in e.message:
+                        break
+                    if tries > 5:
+                        raise e
+                    logger.debug(e.message)
+                    await asyncio.sleep(30)
 
         await self.bot.msg_q.send(ctx, "Emote set successfully copied")
 
@@ -339,7 +349,7 @@ class SevenTVEditor(commands.Cog):
 
         await self.bot.msg_q.send(
             ctx,
-            f"Removed {len(removed_emotes)} emotes: {', '.join([e.name for e in removed_emotes])} ({emote_count - len(removed_emotes)}/{emote_capacity})",
+            f"Removed {len(removed_emotes)} emote(s): {', '.join([e.name for e in removed_emotes])} ({emote_count - len(removed_emotes)}/{emote_capacity})",
             [],
             undo_callback,
         )

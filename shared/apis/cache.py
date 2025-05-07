@@ -4,6 +4,8 @@ from functools import wraps
 import random
 from typing import Any
 
+from pydantic import BaseModel
+
 
 cache: dict[tuple, tuple[Any, datetime]] = {}
 
@@ -17,6 +19,12 @@ def cleanup_cache() -> None:
             del cache[key]
 
 
+def make_hashable(obj: Any) -> Any:
+    if isinstance(obj, BaseModel):
+        return obj.model_dump_json()
+    return obj
+
+
 def async_cache(ttl: timedelta):
     def decorator(func):
         @wraps(func)
@@ -27,7 +35,7 @@ def async_cache(ttl: timedelta):
                 cleanup_cache()
                 last_cleaned = datetime.now(UTC)
 
-            cache_key = (func.__name__, *args)
+            cache_key = (func.__name__, *(make_hashable(arg) for arg in args))
 
             if not force_cache and cache_key in cache:
                 result, expiration_time = cache[cache_key]

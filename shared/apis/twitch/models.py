@@ -120,6 +120,24 @@ class Subage(BaseModel):
     cumulative: CumulativeSubscription | None
     streak: Streak | None
 
+    @field_validator("cumulative", mode="before")
+    @classmethod
+    def validate_cumu_sub(cls, cumu_sub: dict | None) -> CumulativeSubscription | None:
+        if cumu_sub is None:
+            return None
+        if cumu_sub.get("start") is None or cumu_sub.get("end") is None:
+            return None
+        return CumulativeSubscription.model_validate(cumu_sub)
+
+    @field_validator("streak", mode="before")
+    @classmethod
+    def validate_streak(cls, streak: dict | None) -> Streak | None:
+        if streak is None:
+            return None
+        if streak.get("months") == 0:
+            return None
+        return Streak.model_validate(streak)
+
 
 class Game(BaseModel):
     display_name: str = Field(alias="displayName")

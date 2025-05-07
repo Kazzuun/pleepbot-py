@@ -42,6 +42,7 @@ class Fish(commands.Cog):
         channel_id = await channels.channel_id(self.bot.con_pool, ctx.channel.name)
         fisher = await fishing.fisher(self.bot.con_pool, ctx.author.id)
         owned_equipment = self.equipment_catalogue.equipment_owned(fisher.equipment)
+        set_reminder = "-r" in args or "-R" in args
 
         fish_flat: int = sum(
             [e.effect for e in owned_equipment if e.equipment_type == "FISHFLAT"]  # type:ignore
@@ -78,7 +79,7 @@ class Fish(commands.Cog):
         if seconds_ellapsed < cooldown_period:
             cooldown_left = timedelta(seconds=cooldown_period - seconds_ellapsed)
 
-            if "-r" in args:
+            if set_reminder:
                 prefixes = await self.bot.prefixes(ctx.channel.name)
                 rem_id = await reminders.set_reminder(
                     self.bot.con_pool,
@@ -191,7 +192,7 @@ class Fish(commands.Cog):
             total_exp_amount,
         )
 
-        if "-r" in args:
+        if set_reminder:
             cooldown = timedelta(seconds=cooldown_period)
             prefixes = await self.bot.prefixes(ctx.channel.name)
             rem_id = await reminders.set_reminder(
@@ -246,14 +247,14 @@ class Fish(commands.Cog):
 
     @commands.cooldown(rate=3, per=10, bucket=commands.Bucket.member)
     @commands.command(aliases=("topfish", "toplevel"))
-    async def topexp(self, ctx: commands.Context, *args):
-        """Shows the fishing stats of the top 5 people ordered by exp"""
+    async def topexp(self, ctx: commands.Context):
+        """Shows the fishing stats of the top 7 people ordered by exp"""
         top_fishers = await fishing.top_exp(self.bot.con_pool)
         if len(top_fishers) == 0:
             await self.bot.msg_q.send(ctx, "No one has fished yet")
             return
 
-        top_fishers = top_fishers[:5]
+        top_fishers = top_fishers[:7]
         users = await self.bot.fetch_users(ids=[int(fisher.user_id) for fisher in top_fishers])
         usernames = [user.name for user in users]
         user_info = []

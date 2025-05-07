@@ -1,4 +1,5 @@
 from collections import Counter
+from datetime import datetime
 import os
 
 from asyncpg import Pool, Record
@@ -110,17 +111,37 @@ async def number_of_messages(
 
 
 @asyncpg_error_handler
-async def top_chatters(pool: Pool, channel_id: str) -> Counter[str]:
+async def past_messages(pool: Pool, channel_id: str, since: datetime, max_count: int) -> list[Message]:
+    async with pool.acquire() as con:
+        async with con.transaction(readonly=True):
+            results: list[Record] = await con.fetch(
+                """
+                SELECT channel_id, sender, message, sent_at
+                FROM twitch.messages
+                WHERE channel_id = $1 AND sent_at > $2
+                ORDER BY sent_at DESC
+                LIMIT $3;
+                """,
+                channel_id,
+                since,
+                max_count,
+            )
+            return list(reversed([Message(**result) for result in results]))
+
+
+@asyncpg_error_handler
+async def top_chatters(pool: Pool, channel_id: str, exclude: str) -> Counter[str]:
     async with pool.acquire() as con:
         async with con.transaction(readonly=True):
             results: list[Record] = await con.fetch(
                 """
                 SELECT sender, COUNT(*) AS count
                 FROM twitch.messages
-                WHERE channel_id = $1
+                WHERE channel_id = $1 AND sender != $2
                 GROUP BY sender;
                 """,
                 channel_id,
+                exclude,
             )
             return Counter({result["sender"]: result["count"] for result in results})
 
@@ -133,7 +154,7 @@ async def emote_count(pool: Pool, channel_id: str, emote: str) -> int:
                 """
                 SELECT SUM((LENGTH(message) - LENGTH(REGEXP_REPLACE(message, '\\y' || $2 || '\\y', '', 'g'))) / LENGTH($2))
                 FROM twitch.messages
-                WHERE channel_id = $1 AND sender != $2;
+                WHERE channel_id = $1 AND sender != $3;
                 """,
                 channel_id,
                 emote,
@@ -159,6 +180,26 @@ async def emote_counts(pool: Pool, channel_id: str, emotes: list[str]) -> Counte
             word_frequency = Counter(words)
             emote_frequency = {emote: word_frequency[emote] if emote in word_frequency else 0 for emote in emotes}
             return Counter(emote_frequency)
+
+
+@asyncpg_error_handler
+async def first_message(pool: Pool, channel_id: str, username: str) -> Message | None:
+    async with pool.acquire() as con:
+        async with con.transaction(readonly=True):
+            result: Record | None = await con.fetchrow(
+                """
+                SELECT channel_id, sender, message, sent_at
+                FROM twitch.messages
+                WHERE channel_id = $1 AND sender = $2
+                ORDER BY sent_at ASC
+                LIMIT 1;
+                """,
+                channel_id,
+                username,
+            )
+            if result is None:
+                return None
+            return Message(**result)
 
 
 @asyncpg_error_handler

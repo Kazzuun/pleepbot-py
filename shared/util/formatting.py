@@ -3,8 +3,9 @@ from dateutil.relativedelta import relativedelta
 
 
 def format_timedelta(start_time: datetime, end_time: datetime, *, precision: int = 3, exclude_zeros: bool = False):
-    if int((end_time - start_time).total_seconds()) == 0:
-        return "0s"
+    seconds = int((end_time - start_time).total_seconds())
+    if seconds <= 59:
+        return f"{seconds}s"
 
     delta = relativedelta(end_time, start_time)
 

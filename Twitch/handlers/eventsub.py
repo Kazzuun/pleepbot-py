@@ -22,6 +22,8 @@ esclient = eventsub.EventSubClient(
     esbot, webhook_secret=os.environ["WEBHOOK_SECRET"], callback_route=os.environ["CALLBACK_ROUTE_TWITCH"]
 )
 
+last_online: dict[str, datetime] = {}
+
 
 async def subscribe_stream_start(target_id: str | int) -> bool:
     try:
@@ -55,15 +57,15 @@ def register_eventsub_handlers(bot: "Bot") -> None:
     async def event_eventsub_notification_stream_start(payload: eventsub.NotificationEvent) -> None:
         data: eventsub.StreamOnlineData = payload.data  # type: ignore
         logger.debug("Received a stream start event for %s", data.broadcaster.name)
-        # This does nothing if the bot isn't currently in the channel
-        await channels.set_online(bot.con_pool, str(data.broadcaster.id))
 
         channel = await twitch.user_info(user_id=str(data.broadcaster.id))
         if channel is None:
             return
 
-        if channel.last_broadcast.started_at is not None and datetime.now(UTC) - channel.last_broadcast.started_at <= timedelta(minutes=5):
+        if str(data.broadcaster.id) in last_online and datetime.now(UTC) - last_online[str(data.broadcaster.id)] <= timedelta(minutes=15):
             logger.debug("%s was recently live so no notification is sent", data.broadcaster.name)
+            # This does nothing if the bot isn't currently in the channel
+            await channels.set_online(bot.con_pool, str(data.broadcaster.id))
             return
 
         title = channel.broadcast_settings.title if channel.broadcast_settings.title is not None else "<no title>"
@@ -87,20 +89,19 @@ def register_eventsub_handlers(bot: "Bot") -> None:
                 f"@{channel.username} went live streaming {category}: {title} {channel.profile_URL} {emote} {' '.join(pings)}",
             )
 
-        
+        # This does nothing if the bot isn't currently in the channel
+        await channels.set_online(bot.con_pool, str(data.broadcaster.id))
+
 
     @esbot.event()
     async def event_eventsub_notification_stream_end(payload: eventsub.NotificationEvent) -> None:
         data: eventsub.StreamOfflineData = payload.data  # type: ignore
         logger.debug("Received a stream end event for %s", data.broadcaster.name)
-
-        target_channel = data.broadcaster.name
-        if target_channel is None:
-            user = await bot.fetch_users(ids=[data.broadcaster.id])
-            target_channel = user[0].name
+        last_online[str(data.broadcaster.id)] = datetime.now(UTC)
 
         # This does nothing if the bot isn't currently in the channel
         await channels.set_offline(bot.con_pool, str(data.broadcaster.id))
+
 
     @esbot.event()
     async def event_eventsub_notification_user_update(payload: eventsub.NotificationEvent) -> None:

@@ -188,11 +188,29 @@ class Message(commands.Cog):
     async def topchatters(self, ctx: commands.Context):
         """Sorts and shows the top 10 of the chatters of the current channel by the number of messages they have sent"""
         channel_id = await channels.channel_id(self.bot.con_pool, ctx.channel.name)
-        chatters = await messages.top_chatters(self.bot.con_pool, channel_id)
+        chatters = await messages.top_chatters(self.bot.con_pool, channel_id, str(self.bot.nick))
         top_10 = chatters.most_common(10)
         users = [user[0] for user in top_10]
         message = " | ".join([f"{i}. {chatter[0]} - {chatter[1]}" for i, chatter in enumerate(top_10, 1)])
         await self.bot.msg_q.send(ctx, message, users)
+
+    @commands.cooldown(rate=2, per=10, bucket=commands.Bucket.member)
+    @commands.command(aliases=("firstmessage",))
+    async def fm(self, ctx: commands.Context, target: twitchio.User | None):
+        """
+        Shows the first message sent by a user to the current channel that has been logged by the bot;
+        {prefix}fm <target>
+        """
+        assert isinstance(ctx.author.name, str)
+
+        channel_id = await channels.channel_id(self.bot.con_pool, ctx.channel.name)
+        target_name = target.name if target is not None else ctx.author.name
+        first_message = await messages.first_message(self.bot.con_pool, channel_id, target_name)
+        if first_message is None:
+            await self.bot.msg_q.send(ctx, f"{target_name} doesn't have sent any messages logged by the bot in this chat", [target_name])
+            return
+        formatted_time = format_timedelta(first_message.sent_at, datetime.now(UTC))
+        await self.bot.msg_q.send(ctx, f"{target_name}'s first message: {first_message.message} ({formatted_time} ago)", [target_name])
 
     @commands.cooldown(rate=5, per=10, bucket=commands.Bucket.member)
     @commands.command(aliases=("lastseen", "whereis"))

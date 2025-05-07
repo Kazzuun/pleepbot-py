@@ -12,7 +12,7 @@ async def sendable_timers(pool: Pool) -> list[Timer]:
         async with con.transaction():
             results: list[Record] = await con.fetch(
                 """
-                SELECT t.channel_id, j.username, name, message, next_time, time_between, enabled
+                SELECT t.channel_id, j.username as channel_name, name, message, next_time, time_between, enabled
                 FROM twitch.timers t JOIN twitch.joined_channels j ON t.channel_id = j.channel_id
                 WHERE next_time < CURRENT_TIMESTAMP AND enabled IS TRUE;
                 """

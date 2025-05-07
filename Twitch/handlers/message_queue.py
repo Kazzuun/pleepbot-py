@@ -189,7 +189,7 @@ class MessageQueues:
                     msg.message = re.sub(word.pattern, replacement_word, msg.message)
                 except re.error as e:
                     logger.warning(
-                        f"Invalid regex in blocked words: %s (id: %d) %s",
+                        "Invalid regex in blocked words: %s (id: %d) %s",
                         word.pattern,
                         word.id,
                         str(e),

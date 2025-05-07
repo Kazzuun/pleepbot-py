@@ -252,29 +252,31 @@ class Basic(commands.Cog):
 
         await misc.update_last_iq(self.bot.con_pool, ctx.author.id, new_iq)
         difference = new_iq - iq.last_iq
-        sign = "" if difference < 0 else "+"
 
-        if new_iq < 85:
+        if difference <= -5:
             emote = await seventv.best_fitting_emote(
                 channel_id,
                 lambda emote: any(e in emote for e in ("dank", "Dank", "idiot", "dumb")),
                 default="FeelsDankMan",
                 include_global=True,
             )
-        elif new_iq < 115:
+        elif difference >= 5:
+            emote = await seventv.best_fitting_emote(
+                channel_id,
+                lambda emote: emote.lower() == "5head" or "wow" in emote.lower(),
+                default="EZ",
+            )
+        else:
             emote = await seventv.best_fitting_emote(
                 channel_id,
                 lambda emote: any(e in emote.lower() for e in ("okay", "glad")),
                 default="FeelsOkayMan",
                 include_global=True,
             )
-        else:
-            emote = await seventv.best_fitting_emote(
-                channel_id,
-                lambda emote: emote.lower() == "5head" or "wow" in emote.lower(),
-                default="EZ",
-            )
-        await self.bot.msg_q.reply(ctx, f"Your new IQ is {new_iq} ({sign}{difference}) {emote}")
+
+        increased = "increased" if difference >= 0 else "decreased"
+        sign = "" if difference < 0 else "+"
+        await self.bot.msg_q.reply(ctx, f"Your IQ {increased} to {new_iq} ({sign}{difference}) {emote}")
 
     @commands.cooldown(rate=2, per=10, bucket=commands.Bucket.member)
     @commands.command(aliases=("topiqs", "highiq", "highiqs"))
@@ -282,7 +284,7 @@ class Basic(commands.Cog):
         """Shows the iqs of the top 10 people"""
         top_iqs = await misc.list_iqs(self.bot.con_pool)
         if len(top_iqs) == 0:
-            await self.bot.msg_q.send(ctx, "No one's iq is known yet")
+            await self.bot.msg_q.send(ctx, "No one's IQ is known yet")
             return
 
         top_iqs = top_iqs[:10]
@@ -304,7 +306,7 @@ class Basic(commands.Cog):
         """Shows the iqs of the lowest 10 people"""
         low_iqs = await misc.list_iqs(self.bot.con_pool, top=False)
         if len(low_iqs) == 0:
-            await self.bot.msg_q.send(ctx, "No one's iq is known yet")
+            await self.bot.msg_q.send(ctx, "No one's IQ is known yet")
             return
 
         total_iqs = len(low_iqs)

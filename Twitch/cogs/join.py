@@ -76,11 +76,11 @@ class Join(commands.Cog):
     @commands.command()
     async def reconnect(self, ctx: commands.Context):
         if ctx.channel.name in self.bot.connected_channels:
-            await self.bot.part_channels(ctx.channel.name)
+            await self.bot.part_channels([ctx.channel.name])
             self.bot.msg_q.remove_channel(ctx.channel.name)
             self.bot.msg_q.add_channel(ctx.channel.name)
-            await self.bot.join_channels(ctx.channel.name)
-            await self.bot.msg_q.send(ctx, f"Reconnected to {ctx.channel.name}", ctx.channel.name)
+            await self.bot.join_channels([ctx.channel.name])
+            await self.bot.msg_q.send(ctx, f"Reconnected to {ctx.channel.name}", [ctx.channel.name])
         else:
             await self.bot.msg_q.send(ctx, "The bot is currently not connected to your chat")
 

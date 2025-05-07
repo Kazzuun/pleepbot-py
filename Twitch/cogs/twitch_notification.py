@@ -1,4 +1,3 @@
-import asyncio
 from typing import TYPE_CHECKING
 
 import twitchio
@@ -36,22 +35,22 @@ class TwitchNotifications(commands.Cog):
         online_notification_target_ids = await notifications.twitch_notifications(self.bot.con_pool)
         online_notification_ids = initial_channel_ids.union(online_notification_target_ids)
 
-        subs = await eventsub.esclient.get_subscriptions("enabled")
+        # subs = await eventsub.esclient.get_subscriptions()
 
-        online_subs = [sub.condition["broadcaster_user_id"] for sub in subs if sub.type == "stream.online"]
+        # online_subs = [sub.condition["broadcaster_user_id"] for sub in subs if sub.type == "stream.online"]
         for target_id in online_notification_ids:
-            if target_id not in online_subs:
-                await eventsub.subscribe_stream_start(target_id)
+            # if target_id not in online_subs:
+            await eventsub.subscribe_stream_start(target_id)
 
-        offline_subs = [sub.condition["broadcaster_user_id"] for sub in subs if sub.type == "stream.offline"]
-        for target_id in initial_channel_ids:
-            if target_id not in offline_subs:
-                await eventsub.subscribe_stream_end(target_id)
+        # offline_subs = [sub.condition["broadcaster_user_id"] for sub in subs if sub.type == "stream.offline"]
+        for target_id in online_notification_ids:
+            # if target_id not in offline_subs:
+            await eventsub.subscribe_stream_end(target_id)
 
-        user_update_subs = [sub.condition["user_id"] for sub in subs if sub.type == "user.update"]
+        # user_update_subs = [sub.condition["user_id"] for sub in subs if sub.type == "user.update"]
         for target_id in initial_channel_ids:
-            if target_id not in user_update_subs:
-                await eventsub.subscribe_user_updated(target_id)
+            # if target_id not in user_update_subs:
+            await eventsub.subscribe_user_updated(target_id)
 
         logger.debug("Notifications ready")
 

@@ -101,6 +101,9 @@ class ImageHost(BaseModel):
     url: str
     files: list[Image]
 
+    def files_by_format(self, format_: Literal["AVIF", "WEBP", "PNG", "GIF"]) -> list[Image]:
+        return [file for file in self.files if file.format == format_]
+
     @field_validator("url")
     @classmethod
     def add_protocol(cls, url: str):
@@ -307,7 +310,7 @@ class SubscriptionCycle(BaseModel):
     timestamp: datetime
     unit: Literal["MONTH", "YEAR"]
     value: int
-    status: Literal["ONGOING", "CANCELED"]
+    status: Literal["ONGOING", "CANCELED", "ENDED"]
     internal: bool
     pending: bool
     trial_end: datetime | None

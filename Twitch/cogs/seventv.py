@@ -1,5 +1,6 @@
 from datetime import datetime, UTC
 import random
+import re
 from typing import TYPE_CHECKING
 
 import twitchio
@@ -94,7 +95,7 @@ class SevenTV(commands.Cog):
             return
         subage = await seventv.subage(user_info.user.id)
 
-        if subage.months == 0:
+        if subage.age == 0 and not subage.active:
             await self.bot.msg_q.send(ctx, f"{target_name} has not been subbed to 7tv", [target_name])
         elif subage.subscription is None or subage.end_at is None or not subage.active:
             await self.bot.msg_q.send(
@@ -145,7 +146,7 @@ class SevenTV(commands.Cog):
         await self.bot.msg_q.send(ctx, f"{emote} has been used {count} times")
 
     @commands.cooldown(rate=4, per=10, bucket=commands.Bucket.member)
-    @commands.command(aliases=("randomemote", "randemote"))
+    @commands.command(aliases=("randomemote", "randemote", "rem"))
     async def re(self, ctx: commands.Context, count: int | None):
         """Sends random emotes(s) from the channel; {prefix}re <count>"""
         count = min(max(count if count is not None else 1, 1), 50)
@@ -157,6 +158,29 @@ class SevenTV(commands.Cog):
         emote_names = [emote.name for emote in user_info.emote_set.emotes]
         message = " ".join(random.choices(emote_names, k=count))
         await self.bot.msg_q.send(ctx, message)
+
+    @commands.cooldown(rate=4, per=10, bucket=commands.Bucket.member)
+    @commands.command(aliases=("searchemote", "searchemotes", "sem"))
+    async def se(self, ctx: commands.Context, pattern: str, *args: str):
+        """Sends all the emotes which include the pattern; {prefix}se <pattern>; use -r to use regex or -c to search case insensitively"""
+        channel_id = await channels.channel_id(self.bot.con_pool, ctx.channel.name)
+        emotes = await seventv.emote_names(channel_id)
+        if "-r" in args:
+            try:
+                ptrn = re.compile(pattern)
+            except re.error:
+                await self.bot.msg_q.reply(ctx, "Invalid regex")
+                return
+            matched_emotes = [emote for emote in emotes if ptrn.match(emote)]
+        else:
+            if "-c" in args:
+                matched_emotes = [emote for emote in emotes if pattern.lower() in emote.lower()]
+            else:
+                matched_emotes = [emote for emote in emotes if pattern in emote]
+        if len(matched_emotes) == 0:
+            await self.bot.msg_q.reply(ctx, "No emote found matching the given pattern")
+        else:
+            await self.bot.msg_q.send(ctx, " ".join(matched_emotes))
 
     @commands.cooldown(rate=2, per=15, bucket=commands.Bucket.member)
     @commands.command()
@@ -211,9 +235,8 @@ class SevenTV(commands.Cog):
         else:
             actor = "<unknown>"
 
-        time_ellapsed = format_timedelta(target_emote.timestamp, datetime.now(UTC), precision=3)
         message = (
-            f"{emote} was added by {actor} on {target_emote.timestamp.strftime('%Y-%m-%d')} ({time_ellapsed} ago)"
+            f"{emote} was added by {actor}"
         )
         await self.bot.msg_q.send(ctx, message, targets)
 

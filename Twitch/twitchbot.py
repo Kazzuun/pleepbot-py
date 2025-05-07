@@ -1,5 +1,6 @@
 from datetime import datetime, UTC
 import os
+import random
 import re
 import sys
 
@@ -100,6 +101,15 @@ class Bot(commands.Bot):
 
         afk_status = await reminders.afk_status(self.con_pool, channel_config.channel_id, message.author.id)
 
+        prefixes = await self.prefixes(message.channel.name)
+        # # There's a 1.5% chance that the bot will trigger its command randomly
+        # if not channel_config.currently_online and not message.content.startswith(prefixes) and random.random() < 1.0 / 100:
+        #     message.content = f"@{self.nick} " + message.content
+
+        # Using @ to ping the bot will trigger the bot's command
+        if message.content.startswith(f"@{self.nick}"):
+            message.content = message.content.replace("@", prefixes[0], 1)
+
         await self.handle_commands(message)
 
         if afk_status is not None:
@@ -121,8 +131,11 @@ class Bot(commands.Bot):
 
         rems = await reminders.sendable_not_timed_reminders(self.con_pool, message.author.id)
         for rem in rems:
-            if not channel_config.outside_reminds and rem.channel_id != channel_config.channel_id:
-                continue
+            if rem.channel_id != channel_config.channel_id:
+                # If the channel differs, check that the current channel and the origin channel both allow outside reminds
+                origin_channel_config = await channels.channel_config_from_id(self.con_pool, rem.channel_id)
+                if not channel_config.outside_reminds or not origin_channel_config.outside_reminds:
+                    continue
             rem_users = await self.fetch_users(ids=[int(rem.sender_id), int(rem.target_id)])
             sender = [user for user in rem_users if user.id == int(rem.sender_id)]
             if len(sender) == 1:
@@ -178,6 +191,14 @@ class Bot(commands.Bot):
 
     async def event_notice(self, message: str, msg_id: str | None, channel: twitchio.Channel | None):
         logger.debug(f"{message=}, {msg_id=}, {channel=}")
+        if channel is None:
+            return
+        if msg_id == "msg_banned":
+            self.msg_q.remove_channel(channel.name)
+            await self.part_channels([channel.name])
+            channel_id = await channels.channel_id(self.con_pool, channel.name)
+            await channels.part_channel(self.con_pool, channel_id)
+            logger.debug(f"Parted {channel.name} after getting banned")
 
     async def global_check(self, ctx: commands.Context) -> bool:
         """Global check if a target has opted out of the command or is banned"""

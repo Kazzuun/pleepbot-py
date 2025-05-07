@@ -2,9 +2,9 @@ import aiohttp
 from datetime import timedelta
 import random
 import re
-from typing import Callable
+from typing import Callable, Literal
 
-from .models import Emote, EmoteSet, Subage, TwitchUser, User
+from .models import Emote, EmoteSet, EmoteSetEmote, Subage, TwitchUser, User
 from ..cache import async_cache
 from ..exceptions import aiohttp_error_handler
 
@@ -14,6 +14,7 @@ __all__ = (
     "emote_set_from_id",
     "account_info",
     "emote_names",
+    "emote_image",
     "emote_from_id",
     "user_from_id",
     "subage",
@@ -64,6 +65,24 @@ async def emote_names(twitch_id: str, *, force_cache: bool = False, include_glob
         global_emotes = await global_emote_set()
         emotes.extend([emote.name for emote in global_emotes.emotes])
     return emotes
+
+
+@aiohttp_error_handler
+@async_cache(timedelta(hours=1))
+async def emote_image(emote: Emote | EmoteSetEmote, format_: Literal["AVIF", "WEBP", "PNG", "GIF"]) -> bytes | None:
+    if isinstance(emote, EmoteSetEmote):
+        emote_data = emote.data
+    else:
+        emote_data = emote
+
+    async with aiohttp.ClientSession() as session:
+        images = emote_data.host.files_by_format(format_)
+        if len(images) == 0:
+            return None
+
+        url = f"{emote_data.host.url}/{images[-1].name}"
+        async with session.get(url, raise_for_status=True) as resp:
+            return await resp.read()
 
 
 @aiohttp_error_handler
